@@ -1,0 +1,118 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="default-src * data:; style-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval'">
+    <script src="components/loader.js"></script>
+    <link rel="stylesheet" href="components/loader.css">
+    <link rel="stylesheet" href="css/style.css">
+	  <script src="http://maps.google.com/maps/api/js?key=キー"></script>
+	  <style type="text/css">
+	    #map {
+	      width: 400px;
+	      height: 800px;
+	    }
+	  </style>
+	</head>
+<body>
+	<div class="app">
+	  <div id="map"></div>
+	</div>
+<script>
+  document.addEventListener('deviceready', function() {
+    // Get a reference to the plugin.
+    var bgGeo = window.BackgroundGeolocation;
+    var application_key = "YOUR_APPLICATION_KEY";
+    var client_key = "YOUR_CLIENT_KEY";
+    
+		var ncmb  = new NCMB(application_key, client_key);
+    //This callback will be executed every time a geolocation is recorded in the background.
+    var callbackFn = function(location, taskId) {
+        var coords = location.coords;
+        var lat    = coords.latitude;
+        var lng    = coords.longitude;
+    		var geoObject = new ncmb.GeoPoint(lat, lng);
+				var GeoData = ncmb.DataStore("GeoData");
+				var geo = new GeoData;
+				geo.set("location",geoObject);
+				geo.save()
+					.then(function(obj) {
+					})
+					.catch(function(err) {
+						console.log('error', err);
+					});
+        // Must signal completion of your callbackFn.
+        bgGeo.finish(taskId);
+    };
+
+    // This callback will be executed if a location-error occurs.  Eg: this will be called if user disables location-services.
+    var failureFn = function(errorCode) {
+        console.warn('- BackgroundGeoLocation error: ', errorCode);
+    }
+		
+		if (navigator.geolocation) {
+			navigator.geolocation.getCurrentPosition(function(location) {
+        var coords = location.coords;
+        var lat    = coords.latitude;
+        var lng    = coords.longitude;
+		    var map = new GMaps({
+		      el: '#map',
+		      lat: lat,
+		      lng: lng,
+		      zoom: 15
+		    });
+    		var geoObject = new ncmb.GeoPoint(lat, lng);
+				var GeoData = ncmb.DataStore("GeoData");
+				GeoData
+					.withinKilometers("location", geoObject, 2)
+					.order('createDate')
+					.limit(1000)
+		    	.fetchAll()
+		    	.then(function(ary) {
+		    		var paths = [];
+		    		for (var i in ary) {
+		    			var geoData = ary[i];
+		    			paths.push([geoData.location.latitude, geoData.location.longitude]);
+		    		}
+		    		map.drawPolyline({
+						  path: paths,
+						  strokeColor: '#ee8888',
+						  strokeOpacity: 0.6,
+						  strokeWeight: 6
+						});
+		    	});
+			});
+		}
+		
+    // Listen to location events & errors.
+    bgGeo.on('location', callbackFn, failureFn);
+
+    // BackgroundGeoLocation is highly configurable.
+    bgGeo.configure({
+        // Geolocation config
+        desiredAccuracy: 0,
+        distanceFilter: 10,
+        stationaryRadius: 50,
+        locationUpdateInterval: 1000,
+        fastestLocationUpdateInterval: 5000,
+
+        // Activity Recognition config
+        activityType: 'AutomotiveNavigation',
+        activityRecognitionInterval: 5000,
+        stopTimeout: 5,
+
+        // Application config
+        debug: true,
+        stopOnTerminate: false,
+        startOnBoot: true
+    }, function(state) {
+        // This callback is executed when the plugin is ready to use.
+        console.log('BackgroundGeolocation ready: ', state);
+        if (!state.enabled) {
+            bgGeo.start();
+        }
+    });
+	}, false);
+</script></body>
+</html>
